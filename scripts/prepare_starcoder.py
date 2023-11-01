@@ -27,7 +27,7 @@ def prepare_full(
     filenames_subset: List[str] = None,
     process_id: int = 0
 ) -> None:
-    import zstandard as zstd
+    # import zstandard as zstd
 
     destination_path.mkdir(parents=True, exist_ok=True)
 
