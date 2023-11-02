@@ -82,6 +82,8 @@ def setup(
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
+    slurm: bool = True,
+    nodes: int = 2,
 ) -> None:
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
@@ -101,13 +103,23 @@ def setup(
     else:
         strategy = "auto"
 
-    fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
-    fabric.print(hparams)
-    #fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume)
+    if slurm:
+        print("Starting init with slurm...")
+        fabric = L.Fabric(num_nodes=nodes, devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
+        fabric.print(hparams)
+        print("calling launch")
+        fabric.launch(main, train_data_dir, val_data_dir, resume)
+        print("after launch")
+        # main(fabric, train_data_dir, val_data_dir, resume)
+    else:
+        fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
+        fabric.print(hparams)
+        #fabric.launch(main, train_data_dir, val_data_dir, resume)
+        main(fabric, train_data_dir, val_data_dir, resume)
 
 
 def main(fabric, train_data_dir, val_data_dir, resume):
+    print("Entered main")
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
 
     if fabric.global_rank == 0:
