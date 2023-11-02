@@ -18,6 +18,7 @@ pip install -v -U git+https://github.com/facebookresearch/xformers.git@main#egg=
 ```bash
 git clone https://github.com/Dao-AILab/flash-attention
 cd flash-attention
+conda install packaging ## This is needed for the setup process that follows
 python setup.py install
 cd csrc/rotary && pip install .
 cd ../layer_norm && pip install .
@@ -27,6 +28,8 @@ cd ../.. && rm -rf flash-attention
 #### Install Remaining Dependencies
 ```
 pip install -r requirements.txt tokenizers sentencepiece
+conda install -c conda-forge lightning
+conda install -c conda-forge zstandard
 ```
 to install other dependencies.
 It may take >= 5 minutes to build xformers/flash-attention. Do not worry if the process seemly stagnant or the terminal print out many warnings.
