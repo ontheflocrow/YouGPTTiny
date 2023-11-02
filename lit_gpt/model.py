@@ -100,7 +100,7 @@ class GPT(nn.Module):
             mask = None
 
         # forward the model itself
-        x = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
+        x = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
             
         if not use_kv_cache:
             for block in self.transformer.h:

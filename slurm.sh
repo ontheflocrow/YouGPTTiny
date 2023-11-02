@@ -26,4 +26,4 @@ export PYTHONFAULTHANDLER=1
 # export NCCL_SOCKET_IFNAME=^docker0,lo
 
 # Run your training script
-srun python /private/home/akokolis/myWorkspace/TinyLlama/pretrain/tinyllama.py --nodes 2 --devices 8 --train_data_dir data/slim_star  --val_data_dir data/slim_star
+srun python /private/home/akokolis/myWorkspace/TinyLlama/pretrain/tinyllama.py --nodes 2 --devices 8 --train_data_dir /checkpoint/akokolis/tinyllama_datasets/data/slim_star_combined  --val_data_dir /checkpoint/akokolis/tinyllama_datasets/data/slim_star_combined
