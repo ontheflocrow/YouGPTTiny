@@ -1,5 +1,7 @@
 ## Pretrain TinyLlama
 
+For installation on Research Superclusters you can also follow the steps from: T163514566
+
 ### Installation
 We expect you have CUDA 11.8 installed.
 #### Install Pytorch Nightly.
@@ -28,8 +30,6 @@ cd ../.. && rm -rf flash-attention
 #### Install Remaining Dependencies
 ```
 pip install -r requirements.txt tokenizers sentencepiece
-conda install -c conda-forge lightning
-conda install -c conda-forge zstandard
 ```
 to install other dependencies.
 It may take >= 5 minutes to build xformers/flash-attention. Do not worry if the process seemly stagnant or the terminal print out many warnings.
@@ -81,4 +81,3 @@ lightning run model \
     pretrain/tinyllama.py --devices 8 --train_data_dir data/slim_star   --val_data_dir data/slim_star
 ```
 You can follow [these instructions](https://lightning.ai/docs/fabric/stable/guide/multi_node/slurm.html) if you have a slurm cluster.
-
