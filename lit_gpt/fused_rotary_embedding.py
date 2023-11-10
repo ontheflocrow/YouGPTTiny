@@ -37,10 +37,6 @@ class ApplyRotaryEmb(torch.autograd.Function):
                 else (out_ro[..., ::2], out_ro[..., 1::2])
             )
 
-        # APO: Changed the type to float so it's the same as the rest tensors.
-        cos = cos.to(torch.float16)
-        sin = sin.to(torch.float16)
-
         rotary_emb.apply_rotary(
             x1,
             x2,
@@ -93,4 +89,3 @@ class ApplyRotaryEmb(torch.autograd.Function):
 
 
 apply_rotary_emb_func = ApplyRotaryEmb.apply
-

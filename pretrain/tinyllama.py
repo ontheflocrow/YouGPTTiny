@@ -105,7 +105,7 @@ def setup(
 
     if slurm:
         print("Starting init with slurm...")
-        fabric = L.Fabric(num_nodes=nodes, devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
+        fabric = L.Fabric(num_nodes=nodes, devices=devices, strategy=strategy, precision=precision, loggers=[logger])
         fabric.print(hparams)
         print("calling launch")
         fabric.launch(main, train_data_dir, val_data_dir, resume)
@@ -147,7 +147,7 @@ def main(fabric, train_data_dir, val_data_dir, resume):
     with fabric.init_module(empty_init=True):
         model = GPT(config)
         model.apply(partial(model._init_weights ,n_layer=config.n_layer))
- 
+
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
@@ -201,11 +201,11 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         import torch_xla.core.xla_model as xm
 
         xm.mark_step()
-    
-    
+
+
     initial_iter = state["iter_num"]
     curr_iter = 0
-            
+
     loss_func = FusedCrossEntropyLoss()
     for  train_data in train_dataloader:
         # resume loader state. This is not elegant but it works. Should rewrite it in the future.
@@ -220,7 +220,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
                 fabric.print("resume finished, taken {} seconds".format(time.perf_counter() - total_t0))
         if state["iter_num"] >= max_iters:
             break
-        
+
         # determine and set the learning rate for this iteration
         lr = get_lr(state["iter_num"]) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
@@ -245,17 +245,17 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
         elif fabric.device.type == "xla":
             xm.mark_step()
         state["iter_num"] += 1
-        # input_id: B L 
+        # input_id: B L
         total_lengths += input_ids.size(1)
         t1 = time.perf_counter()
         fabric.print(
                 f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
                 f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
-                f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
+                f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. "
                 # print days as well
                 f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
             )
- 
+
         monitor.on_train_batch_end(
             state["iter_num"] * micro_batch_size,
             t1 - total_t0,
@@ -266,11 +266,11 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             train_loss = loss.item()
         )
 
-            
-            
-            
+
+
+
         if val_dataloader is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
-            
+
             t0 = time.perf_counter()
             val_loss = validate(fabric, model, val_dataloader)
             t1 = time.perf_counter() - t0
@@ -284,7 +284,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
             fabric.save(checkpoint_path, state)
 
-        
+
 @torch.no_grad()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:
     fabric.print("Validating ...")
@@ -302,7 +302,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         # loss_func = FusedCrossEntropyLoss()
         # loss = loss_func(logits, targets)
         losses[k] = loss.item()
-        
+
     out = losses.mean()
 
     model.train()
@@ -321,7 +321,7 @@ def create_dataloader(
 
         dataset = PackedDataset(
             filenames,
-            # n_chunks control the buffer size. 
+            # n_chunks control the buffer size.
             # Note that the buffer size also impacts the random shuffle
             # (PackedDataset is an IterableDataset. So the shuffle is done by prefetch a buffer and shuffle the buffer)
             n_chunks=8,
