@@ -318,7 +318,6 @@ def create_dataloader(
         filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
         random.seed(seed)
         random.shuffle(filenames)
-
         dataset = PackedDataset(
             filenames,
             # n_chunks control the buffer size.
