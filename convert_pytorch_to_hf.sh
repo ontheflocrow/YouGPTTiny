@@ -7,15 +7,17 @@
 # OUT_DIR=out/tinyllama_500M
 # CHECKPOINT=iter-205000-ckpt
 # MODEL_NAME=tiny_LLaMA_500M
-OUT_DIR=out/tinyllama_120M
-CHECKPOINT=iter-035000-ckpt
-MODEL_NAME=tiny_LLaMA_120M
-INFERENCE_DIR=out/pretrained
+OUT_DIR=out/tinyllama_300M
+CHECKPOINT_NUM=515000
+CHECKPOINT=iter-$CHECKPOINT_NUM-ckpt
+MODEL_NAME=tiny_LLaMA_300M
+INFERENCE_DIR=out/pretrained_300M_$CHECKPOINT_NUM
+mkdir -p $INFERENCE_DIR
 python scripts/convert_lit_checkpoint.py --out_dir $OUT_DIR --checkpoint_name $CHECKPOINT.pth --model_name $MODEL_NAME --model_only False
 mv $OUT_DIR/$CHECKPOINT.bin $INFERENCE_DIR/pytorch_model.bin
 mv $OUT_DIR/config.json $INFERENCE_DIR/
 
-python pretrain/simple_inference.py
+# python pretrain/simple_inference.py
 
 # Not needed
 # python scripts/convert_hf_checkpoint.py --checkpoint_dir  out/tinyllama_500M --model_name tiny_LLaMA_500M

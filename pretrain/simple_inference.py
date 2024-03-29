@@ -6,13 +6,14 @@ from pathlib import Path
 from transformers import LlamaTokenizer
 from transformers import LlamaForCausalLM
 
-out_dir = "/home/ken/workspace/TinyLlama/out/pretrained"
+out_dir = "/home/ken/workspace/TinyLlama/out/pretrained_300M_115000"
 model_path = os.path.join(out_dir, "pytorch_model.bin")
-state_dict = torch.load(model_path, map_location=torch.device("cpu"))
+state_dict = torch.load(model_path)
 tokenizer_path = Path("/home/ken/workspace/TinyLlama/llama-tokenizer/")
 model = LlamaForCausalLM.from_pretrained(
     out_dir, local_files_only=True, state_dict=state_dict
 )
+model = model.to("cuda")
 tokenizer = LlamaTokenizer.from_pretrained(tokenizer_path)
 # tokenizer = Tokenizer(tokenizer_path)
 pipeline = transformers.pipeline(
