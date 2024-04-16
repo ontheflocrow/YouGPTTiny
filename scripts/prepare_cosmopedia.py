@@ -7,6 +7,7 @@ from typing import List
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Process, cpu_count
+from datasets import load_dataset
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
@@ -15,7 +16,17 @@ sys.path.append(str(wd))
 import lit_gpt.packed_dataset as packed_dataset
 from lit_gpt import Tokenizer
 
-import pandas as pd
+# Filename for cosmopedia
+cosmopedia_sets = {
+    "train_auto_math_text": "data/auto_math_text/*",
+    "train": "data/khanacademy/*",
+    "train": "data/openstax/*",
+    "train": "data/stanford/*",
+    "train": "data/stories/*",
+    "train": "data/web_samples_v1/*",
+    "train": "data/wikihow/*"
+
+}
 
 
 def prepare_full(
@@ -38,13 +49,13 @@ def prepare_full(
     
     if not filenames:
         raise RuntimeError(
-            f"No files matching  found at {source_path}. \n"
+            f"No files matching {cosmopedia_sets[split]} found at {source_path}. \n"
             "Make sure you download the data..."
         )
 
     builder = packed_dataset.PackedDatasetBuilder(
         outdir=destination_path,
-        prefix=f"{split}_starcoder_{process_id}",  # Use process_id to differentiate builders
+        prefix=f"{split}_{process_id}",  # Use process_id to differentiate builders
         chunk_size=chunk_size,
         sep_token=tokenizer.bos_id,
         dtype="auto",
@@ -53,12 +64,9 @@ def prepare_full(
 
     for filepath in filenames:
         print(f"Processing {filepath}")
-        try:
-            contents = pd.read_parquet(filepath, engine='pyarrow')['content']
-        except:
-            print(f"Error reading {filepath}!!")
-            continue
-        for text in contents:
+        ds = load_dataset("parquet", data_files={"train": filepath}, split="train", streaming=True)
+        for row in tqdm(iter(ds)):
+            text = row["prompt"] + row["text"]
             text_ids = tokenizer.encode(text)
             builder.add_array(np.array(text_ids, dtype=builder.dtype))
 
@@ -73,17 +81,13 @@ def prepare(
     chunk_size: int = 2049 * 1024,
     split: str="train",
     percentage: float = 1.0,
-    filenames_subset: List[str] = None,
 ) -> None:
     import time
-    assert split == "train" #  starcoder only has train data
-    filenames = glob.glob(os.path.join(source_path, "*/*.parquet"), recursive=True)
-    # only retrain subsets that follow the prefix in filenames_subset
-    if filenames_subset:
-        filenames = [f for f in filenames if any([prefix in f for prefix in filenames_subset])]
-    filenames = filenames[:int(len(filenames) * percentage)]
 
-    num_processes = min(len(filenames), cpu_count())
+    filenames = glob.glob(os.path.join(source_path, cosmopedia_sets[split]), recursive=True)
+    filenames = filenames[:int(len(filenames) * percentage)]
+    
+    num_processes = 2
     chunked_filenames = np.array_split(filenames, num_processes)
 
     processes = []

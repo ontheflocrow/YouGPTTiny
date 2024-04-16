@@ -295,6 +295,8 @@ def convert_lit_checkpoint(*,
     # ("lit_model_finetuned.pth", "lit_model_lora_finetuned.pth", "lit_model_adapter_finetuned.pth"")
     pth_file = out_dir / checkpoint_name
     bin_file = pth_file.with_suffix(".bin")
+    # bin_file = pth_file.with_suffix(".pth")
+
 
     with incremental_save(bin_file) as saver:
         with contextlib.ExitStack() as stack:

@@ -74,6 +74,7 @@ TPU_AVAILABLE_FLOPS = {
 def get_flops_available(device: torch.device, precision: str) -> Optional[float]:
     if device.type == "cuda":
         device_name = torch.cuda.get_device_name(device).lower()
+        print("**********************device_name*******************:", device_name)
         if "h100" in device_name and "hbm3" in device_name:
             device_name = "h100-sxm"
         elif "h100" in device_name and ("pcie" in device_name or "hbm2e" in device_name):

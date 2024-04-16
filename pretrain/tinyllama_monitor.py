@@ -18,13 +18,10 @@ from lit_gpt.model import GPT, Block, Config, CausalSelfAttention
 from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
 from lit_gpt.speed_monitor import SpeedMonitorFabric as Monitor
 from lit_gpt.speed_monitor import estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger#, lazy_load
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
-
-# from lm_evaluation_harness.lm_eval import run_eval_harness
 import random
-
 
 model_name = "tiny_LLaMA_1b"
 name = "tinyllama_1b"
@@ -138,7 +135,7 @@ def main(fabric, train_data_dir, val_data_dir, resume):
     t0 = time.perf_counter()
     with fabric.init_module(empty_init=False):
         model = GPT(config)
-        model.apply(partial(model._init_weights ,n_layer=config.n_layer))
+        model.apply(partial(model._init_weights, n_layer=config.n_layer))
  
 
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
@@ -155,7 +152,7 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
-    if resume:
+    if resume :
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
 
@@ -293,8 +290,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         losses[k] = loss.item()
         
     out = losses.mean()
-    # 
-    # run_eval_harness
+
     model.train()
     return out
 
@@ -304,7 +300,6 @@ def create_dataloader(
 ) -> DataLoader:
     datasets = []
     data_config = train_data_config if split == "train" else val_data_config
-    # train_data_config = [("train_slim", 0.693584),("train_star", 0.306416),]
     for prefix, _ in data_config:
         filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
         random.seed(seed)

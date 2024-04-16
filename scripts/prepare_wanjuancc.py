@@ -6,6 +6,7 @@ import sys
 from typing import List
 import numpy as np
 from tqdm import tqdm
+import tarfile
 from multiprocessing import Process, cpu_count
 
 # support running without installing as a package
@@ -15,7 +16,10 @@ sys.path.append(str(wd))
 import lit_gpt.packed_dataset as packed_dataset
 from lit_gpt import Tokenizer
 
-import pandas as pd
+# Filename for wanjuancc
+wanjuancc_sets = {
+    "train": "raw/*",
+}
 
 
 def prepare_full(
@@ -38,13 +42,13 @@ def prepare_full(
     
     if not filenames:
         raise RuntimeError(
-            f"No files matching  found at {source_path}. \n"
+            f"No files matching {wanjuancc_sets[split]} found at {source_path}. \n"
             "Make sure you download the data..."
         )
 
     builder = packed_dataset.PackedDatasetBuilder(
         outdir=destination_path,
-        prefix=f"{split}_starcoder_{process_id}",  # Use process_id to differentiate builders
+        prefix=f"{split}_wanjuancc_{process_id}",  # Use process_id to differentiate builders
         chunk_size=chunk_size,
         sep_token=tokenizer.bos_id,
         dtype="auto",
@@ -53,14 +57,18 @@ def prepare_full(
 
     for filepath in filenames:
         print(f"Processing {filepath}")
-        try:
-            contents = pd.read_parquet(filepath, engine='pyarrow')['content']
-        except:
-            print(f"Error reading {filepath}!!")
-            continue
-        for text in contents:
-            text_ids = tokenizer.encode(text)
-            builder.add_array(np.array(text_ids, dtype=builder.dtype))
+        with tarfile.open(filepath, 'r:gz') as tar:
+        # 遍历 tar 中的每个成员
+            for member in tar.getmembers():
+                #提取文件对象
+                print("member:", member)
+                file = tar.extractfile(member)
+                print("file:", file)
+                # 逐行解析 JSON 数据
+                for row in (file.readlines()):
+                    text = json.loads(row.decode("utf-8"))["content"]
+                    text_ids = tokenizer.encode(text)
+                    builder.add_array(np.array(text_ids, dtype=builder.dtype))
 
     # we throw away the final corpus to avoid meaningless corpus filled with bos_ids, see https://github.com/jzhang38/TinyLlama/issues/83 for more details
     # builder.write_reminder()
@@ -73,23 +81,23 @@ def prepare(
     chunk_size: int = 2049 * 1024,
     split: str="train",
     percentage: float = 1.0,
-    filenames_subset: List[str] = None,
 ) -> None:
     import time
-    assert split == "train" #  starcoder only has train data
-    filenames = glob.glob(os.path.join(source_path, "*/*.parquet"), recursive=True)
-    # only retrain subsets that follow the prefix in filenames_subset
-    if filenames_subset:
-        filenames = [f for f in filenames if any([prefix in f for prefix in filenames_subset])]
-    filenames = filenames[:int(len(filenames) * percentage)]
 
+    filenames = glob.glob(os.path.join(source_path, wanjuancc_sets[split]), recursive=True)
+    filenames = filenames[:int(len(filenames) * percentage)]
+    print("count of filenames:", len(filenames))
+    
     num_processes = min(len(filenames), cpu_count())
+    # num_processes = 1
+    # num_processes = cpu_count() 
+    # num_processes = 61
     chunked_filenames = np.array_split(filenames, num_processes)
 
     processes = []
     start_time = time.time()
 
-    for i, subset in enumerate(chunked_filenames):
+    for i, subset in tqdm(enumerate(chunked_filenames)):
         p = Process(target=prepare_full, args=(source_path, tokenizer_path, destination_path, chunk_size, split, list(subset), i))
         processes.append(p)
         p.start()
