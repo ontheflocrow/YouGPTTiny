@@ -23,15 +23,23 @@ class Tokenizer:
             with open(checkpoint_dir / "tokenizer_config.json") as fp:
                 config = json.load(fp)
             bos_token = config.get("bos_token")
-            self.bos_id = self.token_to_id(bos_token) if bos_token is not None else None
-            self.eos_id = self.token_to_id(config["eos_token"])
+            eos_token = config.get("eos_token")
+            if type(bos_token) is not dict:
+                self.bos_id = self.token_to_id(bos_token) if bos_token is not None else None # general qwen
+                self.eos_id = self.token_to_id(eos_token) if eos_token is not None else None # general qwen 
+
+            else:
+                self.bos_id = self.token_to_id(bos_token["content"]) if bos_token is not None else None  # deepseek
+                self.eos_id = self.token_to_id(eos_token["content"]) if eos_token is not None else None # deepseek
+
         else:
             raise NotImplementedError
 
     @property
     def vocab_size(self) -> int:
         if self.backend == "huggingface":
-            return self.processor.get_vocab_size(with_added_tokens=False)
+            # return self.processor.get_vocab_size(with_added_tokens=False)
+            return self.processor.get_vocab_size(with_added_tokens=True)
         if self.backend == "sentencepiece":
             return self.processor.vocab_size()
         raise RuntimeError
@@ -48,12 +56,12 @@ class Tokenizer:
         return id_
 
     def encode(
-        self,
-        string: str,
-        device: Optional[torch.device] = None,
-        bos: bool = False,
-        eos: bool = True,
-        max_length: int = -1,
+            self,
+            string: str,
+            device: Optional[torch.device] = None,
+            bos: bool = False,
+            eos: bool = True,
+            max_length: int = -1,
     ) -> torch.Tensor:
         if self.backend == "huggingface":
             tokens = self.processor.encode(string).ids
@@ -75,3 +83,13 @@ class Tokenizer:
     def decode(self, tensor: torch.Tensor) -> str:
         tokens = [tensor.item()] if tensor.ndim == 0 else tensor.tolist()
         return self.processor.decode(tokens)
+
+
+if __name__ == "__main__":
+    tokenizer_path = "/Users/peiji/opencsg/llm_train/data/deepseekLlamaTokenizer"
+    t = Tokenizer(Path(tokenizer_path))
+    print(t.bos_id)
+    print(t.vocab_size)
+
+
+

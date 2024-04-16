@@ -3,7 +3,7 @@ import math
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Dict
 import math
 import lightning as L
 import torch
@@ -14,49 +14,46 @@ from functools import partial
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 # from apex.optimizers import FusedAdam #torch optimizer has a cuda backend, which is faster actually
+from eval.lm_eval_harness import EvalHarnessBase
 from lit_gpt.model import GPT, Block, Config, CausalSelfAttention
 from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
 from lit_gpt.speed_monitor import SpeedMonitorFabric as Monitor
 from lit_gpt.speed_monitor import estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger#, lazy_load
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 from pytorch_lightning.loggers import WandbLogger
-from lit_gpt import FusedCrossEntropyLoss
-
-# from lm_evaluation_harness.lm_eval import run_eval_harness
+from lit_gpt import FusedCrossEntropyLoss, Tokenizer
 import random
 
 
-model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b"
-out_dir = Path("out") / name
-
+model_name = "csg-wukong-1B"
+name = "csg-wukong-1B"
+# model_name = "tiny_LLaMA_1b"
+# name = "tiny_LLaMA_1b"
+out_dir = Path("/data/train") / name
+checkpoint_path = "/data/models/csg-tiny-1B/csg-tiny-1B-1195k/iter-4780000-ckpt.pth"
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
-learning_rate = 4e-4
-# micro_batch_size = 8
+learning_rate = 2e-4
+min_lr = 2e-5
 micro_batch_size = 16
 max_step = 715256 * 2
-warmup_steps = 2000
+warmup_steps = 2000 
 log_step_interval = 10
 eval_iters = 100
 save_step_interval = 5000
 eval_step_interval = 5000
-
 
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0
 decay_lr = True
-min_lr = 4e-5
 
 batch_size = global_batch_size // num_of_devices
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
-
-
 
 
 max_iters = max_step * gradient_accumulation_steps
@@ -66,8 +63,7 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_slim", 0.693584),
-    ("train_star", 0.306416),
+    ("train", 1),
 ]
 
 val_data_config = [
@@ -76,7 +72,7 @@ val_data_config = [
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_iter_interval)
-wandb_logger = WandbLogger()
+wandb_logger=WandbLogger(project="continue-pretrain-csg-tiny", name="csg-tiny-1B-1195K-cosmopedia")
 
 
 def setup(
@@ -86,6 +82,7 @@ def setup(
     precision: Optional[str] = None,
     tpu: bool = False,
     resume: Union[bool, Path] = False,
+    tokenizer_dir: Union[bool, Path] = "/data/models/csg-tiny-1B/csg-tiny-1B-1195k",
 ) -> None:
     precision = precision or get_default_supported_precision(training=True, tpu=tpu)
 
@@ -107,11 +104,11 @@ def setup(
 
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=[logger, wandb_logger])
     fabric.print(hparams)
-    #fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume)
+    # fabric.launch(main, train_data_dir, val_data_dir, resume, tokenizer_dir)
+    main(fabric, train_data_dir, val_data_dir, resume, tokenizer_dir)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume):
+def main(fabric, train_data_dir, val_data_dir, resume, tokenizer_dir):
     monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
 
     if fabric.global_rank == 0:
@@ -134,20 +131,27 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     fabric.seed_everything(3407)  # same seed for every process to init model (FSDP)
 
-    fabric.print(f"Loading model with {config.__dict__}")
+    fabric.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
     t0 = time.perf_counter()
     with fabric.init_module(empty_init=False):
         model = GPT(config)
-        model.apply(partial(model._init_weights ,n_layer=config.n_layer))
+    
  
-
-    fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
-    fabric.print(f"Total parameters {num_parameters(model):,}")
-
     model = fabric.setup(model)
+    # fabric.load_raw(checkpoint_path, model, strict=True)
+    if not resume:
+        fabric.load(checkpoint_path, {"model": model})
+        fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
+        fabric.print(f"Total parameters {num_parameters(model):,}")
+
+    
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
+    # import bitsandbytes as bnb
+    # optimizer = bnb.optim.AdamW8bit(
+    #     model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2)
+    # )
     # optimizer = FusedAdam(model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2),adam_w_mode=True)
     optimizer = fabric.setup_optimizers(optimizer)
 
@@ -160,13 +164,13 @@ def main(fabric, train_data_dir, val_data_dir, resume):
         fabric.load(resume, state)
 
     train_time = time.perf_counter()
-    train(fabric, state, train_dataloader, val_dataloader, monitor, resume)
+    train(fabric, state, train_dataloader, val_dataloader, monitor, resume, tokenizer_dir)
     fabric.print(f"Training time: {(time.perf_counter()-train_time):.2f}s")
     if fabric.device.type == "cuda":
         fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
 
 
-def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
+def train(fabric, state, train_dataloader, val_dataloader, monitor, resume, tokenizer_dir):
     model = state["model"]
     optimizer = state["optimizer"]
 
@@ -199,7 +203,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
     curr_iter = 0
             
     loss_func = FusedCrossEntropyLoss()
-    for  train_data in train_dataloader:
+    for curr_iter, train_data in enumerate(train_dataloader, initial_iter):
         # resume loader state. This is not elegant but it works. Should rewrite it in the future.
         if resume:
             if curr_iter < initial_iter:
@@ -219,9 +223,9 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             param_group["lr"] = lr
 
         iter_t0 = time.perf_counter()
-
         input_ids = train_data[:, 0 : model.config.block_size].contiguous()
         targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
+
         is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
         with fabric.no_backward_sync(model, enabled=is_accumulating):
             logits = model(input_ids)
@@ -247,6 +251,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
                 # print days as well
                 f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
             )
+ 
         monitor.on_train_batch_end(
             state["iter_num"] * micro_batch_size,
             t1 - total_t0,
@@ -257,17 +262,30 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
             lengths=total_lengths,
             train_loss = loss.item()
         )
+
+            
             
         if val_dataloader is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
             
             t0 = time.perf_counter()
             val_loss = validate(fabric, model, val_dataloader)
+            eval_metrics = evaluation(fabric, model, tokenizer_dir)
             t1 = time.perf_counter() - t0
             monitor.eval_end(t1)
             fabric.print(f"step {state['iter_num']}: val loss {val_loss:.4f}, val time: {t1 * 1000:.2f}ms")
             fabric.log_dict({"metric/val_loss": val_loss.item(), "total_tokens": model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size}, state["step_count"])
             fabric.log_dict({"metric/val_ppl": math.exp(val_loss.item()), "total_tokens": model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size}, state["step_count"])
+
+
+            for m in ["hellaswag", "openbookqa", "winogrande", "arc_easy", "arc_challenge", "boolq", "piqa"]:
+                val_m = eval_metrics["results"][m].get("acc_norm", -1)
+                if val_m == -1:
+                    val_m = eval_metrics["results"][m].get("acc", -1)
+                fabric.log_dict({("eval/" + "val_" + m): val_m, "total_tokens": model.config.block_size * (
+                    state["iter_num"] + 1) * micro_batch_size * fabric.world_size}, state["step_count"])
+
             fabric.barrier()
+
         if not is_accumulating and state["step_count"] % save_step_interval == 0:
             checkpoint_path = out_dir / f"iter-{state['iter_num']:06d}-ckpt.pth"
             fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
@@ -293,29 +311,48 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         losses[k] = loss.item()
         
     out = losses.mean()
-    # 
-    # run_eval_harness
+
     model.train()
     return out
 
 
+@torch.no_grad()
+def evaluation(fabric: L.Fabric, model: torch.nn.Module, tokenizer_dir) -> Dict:
+    fabric.print("evaluating............")
+    model.eval()
+    tokenizer = Tokenizer(tokenizer_dir)
+
+    eval_harness = EvalHarnessBase(fabric, model, tokenizer, 1)
+    eval_tasks = ["hellaswag", "openbookqa", "winogrande", "arc_easy", "arc_challenge", "boolq", "piqa"]
+    num_fewshot: int = 0
+    limit: Optional[int] = None
+    bootstrap_iters: int = 100000
+    no_cache: bool = True
+    eval_res = eval_harness.run_eval(eval_tasks, num_fewshot, limit, bootstrap_iters, no_cache)
+
+    return eval_res
+
+
 def create_dataloader(
-    batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345, split="train"
-) -> DataLoader:
+    batch_size: int, block_size: int, data_dir: Path, fabric,
+    shuffle: bool = True, seed: int = 12345, split="train") -> DataLoader:
     datasets = []
     data_config = train_data_config if split == "train" else val_data_config
-    # train_data_config = [("train_slim", 0.693584),("train_star", 0.306416),]
     for prefix, _ in data_config:
         filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
         random.seed(seed)
         random.shuffle(filenames)
-
+        n_chunks = 8
+        if len(filenames) < 8:
+            n_chunks = 1
+        else:
+            n_chunks = 8
         dataset = PackedDataset(
             filenames,
             # n_chunks control the buffer size. 
             # Note that the buffer size also impacts the random shuffle
             # (PackedDataset is an IterableDataset. So the shuffle is done by prefetch a buffer and shuffle the buffer)
-            n_chunks=8,
+            n_chunks=n_chunks,
             block_size=block_size,
             shuffle=shuffle,
             seed=seed+fabric.global_rank,

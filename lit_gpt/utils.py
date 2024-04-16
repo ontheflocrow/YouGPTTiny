@@ -8,14 +8,17 @@ from functools import partial
 from io import BytesIO
 from pathlib import Path
 from types import MethodType
-from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Mapping, Optional, Type, TypeVar, Union, Literal
 
 import torch
 import torch.nn as nn
 import torch.utils._device
-from lightning.fabric.loggers import CSVLogger
+from lightning.fabric.loggers import CSVLogger, TensorBoardLogger
+from lightning.pytorch.loggers import WandbLogger
+from lightning.fabric.strategies import FSDPStrategy
+# from lightning.fabric.utilities.load import _lazy_load as lazy_load
 from torch.serialization import normalize_storage_type
-
+import lightning as L
 
 def find_multiple(n: int, k: int) -> int:
     assert k > 0
@@ -233,7 +236,7 @@ class lazy_load:
 def check_valid_checkpoint_dir(checkpoint_dir: Path) -> None:
     files = {
         "lit_model.pth": (checkpoint_dir / "lit_model.pth").is_file(),
-        "lit_config.json": (checkpoint_dir / "lit_config.json").is_file(),
+        # "lit_config.json": (checkpoint_dir / "lit_config.json").is_file(),
         "tokenizer.json OR tokenizer.model": (checkpoint_dir / "tokenizer.json").is_file() or (
             checkpoint_dir / "tokenizer.model"
         ).is_file(),
@@ -404,6 +407,26 @@ class incremental_save:
         self.zipfile.write_end_of_file()
 
 
+def load_checkpoint(fabric: L.Fabric, model: nn.Module, checkpoint_path: Path, strict: bool = True) -> None:
+    if isinstance(fabric.strategy, FSDPStrategy):
+        fabric.load_raw(checkpoint_path, model, strict=strict)
+    else:
+        state_dict = lazy_load(checkpoint_path)
+        state_dict = state_dict.get("model", state_dict)
+        model.load_state_dict(state_dict, strict=strict)
+
+
+def CLI(*args: Any, **kwargs: Any) -> Any:
+    from jsonargparse import CLI, set_config_read_mode, set_docstring_parse_options
+
+    set_docstring_parse_options(attribute_docstrings=True)
+    set_config_read_mode(urls_enabled=True)
+
+    kwargs.setdefault("as_positional", False)
+
+    return CLI(*args, **kwargs)
+
+
 T = TypeVar("T")
 
 
@@ -503,3 +526,19 @@ def get_default_supported_precision(training: bool, tpu: bool = False) -> str:
     if not torch.cuda.is_available() or torch.cuda.is_bf16_supported():
         return "bf16-mixed" if training else "bf16-true"
     return "16-mixed" if training else "16-true"
+
+def choose_logger(
+    logger_name: Literal["csv", "tensorboard", "wandb"],
+    out_dir: Path,
+    name: str,
+    log_interval: int = 1,
+    resume: Optional[bool] = None,
+    **kwargs: Any,
+):
+    if logger_name == "csv":
+        return CSVLogger(root_dir=(out_dir / "logs"), name="csv", flush_logs_every_n_steps=log_interval, **kwargs)
+    if logger_name == "tensorboard":
+        return TensorBoardLogger(root_dir=(out_dir / "logs"), name="tensorboard", **kwargs)
+    if logger_name == "wandb":
+        return WandbLogger(project=name, resume=resume, **kwargs)
+    raise ValueError(f"`--logger_name={logger_name}` is not a valid option. Choose from 'csv', 'tensorboard', 'wandb'.")

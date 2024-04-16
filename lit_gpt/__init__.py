@@ -1,5 +1,9 @@
+import logging
+import re
+
 from lit_gpt.model import GPT
 from lit_gpt.config import Config
+from lit_gpt.prompts import PromptStyle
 from lit_gpt.tokenizer import Tokenizer
 from lit_gpt.fused_cross_entropy import FusedCrossEntropyLoss
 from lightning_utilities.core.imports import RequirementCache
@@ -16,5 +20,10 @@ if not bool(_LIGHTNING_AVAILABLE):
         f" pip uninstall -y lightning; pip install -r requirements.txt\n{str(_LIGHTNING_AVAILABLE)}"
     )
 
+# Suppress excessive warnings, see https://github.com/pytorch/pytorch/issues/111632
+pattern = re.compile(".*Profiler function .* will be ignored")
+logging.getLogger("torch._dynamo.variables.torch").addFilter(lambda record: not pattern.search(record.getMessage()))
 
-__all__ = ["GPT", "Config", "Tokenizer"]
+# __all__ = ["GPT", "Config", "Tokenizer"]
+__all__ = ["GPT", "Config", "Tokenizer", "PromptStyle"]
+

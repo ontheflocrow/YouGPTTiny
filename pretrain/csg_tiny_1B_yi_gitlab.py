@@ -18,24 +18,21 @@ from lit_gpt.model import GPT, Block, Config, CausalSelfAttention
 from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
 from lit_gpt.speed_monitor import SpeedMonitorFabric as Monitor
 from lit_gpt.speed_monitor import estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger#, lazy_load
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 from pytorch_lightning.loggers import WandbLogger
 from lit_gpt import FusedCrossEntropyLoss
-
-# from lm_evaluation_harness.lm_eval import run_eval_harness
 import random
 
-
-model_name = "tiny_LLaMA_1b"
-name = "tinyllama_1b"
+model_name = "csg-tiny-1B-yi"
+name = "csg-tiny-1B-yi-gitlab"
 out_dir = Path("out") / name
 
 # Hyperparameters
 num_of_devices = 8
 global_batch_size = 512
 learning_rate = 4e-4
-# micro_batch_size = 8
-micro_batch_size = 16
+micro_batch_size = 8
+# micro_batch_size = 16
 max_step = 715256 * 2
 warmup_steps = 2000
 log_step_interval = 10
@@ -57,8 +54,6 @@ assert gradient_accumulation_steps > 0
 warmup_iters = warmup_steps * gradient_accumulation_steps
 
 
-
-
 max_iters = max_step * gradient_accumulation_steps
 lr_decay_iters = max_iters
 log_iter_interval = log_step_interval * gradient_accumulation_steps
@@ -66,8 +61,7 @@ log_iter_interval = log_step_interval * gradient_accumulation_steps
 
 # Treat all dataset equally by their size. If you want to use a different weight for a dataset, add it to the list with the weight.
 train_data_config = [
-    ("train_slim", 0.693584),
-    ("train_star", 0.306416),
+    ("train_gitlab", 1.0),
 ]
 
 val_data_config = [
@@ -76,7 +70,7 @@ val_data_config = [
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_iter_interval)
-wandb_logger = WandbLogger()
+wandb_logger = WandbLogger(project="pretrain-csg-tiny", name="test_yi_tokenizer_yi_gitlab")
 
 
 def setup(
@@ -155,7 +149,7 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
-    if resume:
+    if resume :
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
 
@@ -199,7 +193,7 @@ def train(fabric, state, train_dataloader, val_dataloader, monitor, resume):
     curr_iter = 0
             
     loss_func = FusedCrossEntropyLoss()
-    for  train_data in train_dataloader:
+    for curr_iter, train_data in enumerate(train_dataloader, initial_iter):
         # resume loader state. This is not elegant but it works. Should rewrite it in the future.
         if resume:
             if curr_iter < initial_iter:
@@ -293,8 +287,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         losses[k] = loss.item()
         
     out = losses.mean()
-    # 
-    # run_eval_harness
+
     model.train()
     return out
 
@@ -304,12 +297,11 @@ def create_dataloader(
 ) -> DataLoader:
     datasets = []
     data_config = train_data_config if split == "train" else val_data_config
-    # train_data_config = [("train_slim", 0.693584),("train_star", 0.306416),]
     for prefix, _ in data_config:
         filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
         random.seed(seed)
         random.shuffle(filenames)
-
+        print("------------------------", filenames)
         dataset = PackedDataset(
             filenames,
             # n_chunks control the buffer size. 
@@ -323,7 +315,7 @@ def create_dataloader(
             process_rank=fabric.global_rank,
         )
         datasets.append(dataset)
-
+    
     if not datasets:
         raise RuntimeError(
             f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."

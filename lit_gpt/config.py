@@ -113,6 +113,11 @@ configs = [
 # EleutherAI Pythia
 ####################
 pythia = [
+    
+    #https://huggingface.co/EleutherAI/pythia-14m/blob/main/config.json
+    dict(org="EleutherAI", name="pythia-14m", block_size=512, n_layer=6, n_embd=128, n_head=4, padding_multiple=128),
+    #https://huggingface.co/EleutherAI/pythia-31m/blob/main/config.json
+    dict(org="EleutherAI", name="pythia-31m", block_size=1024, n_layer=6, n_embd=256, n_head=8, padding_multiple=128),
     # https://huggingface.co/EleutherAI/pythia-70m/blob/main/config.json
     dict(org="EleutherAI", name="pythia-70m", block_size=2048, n_layer=6, n_embd=512, n_head=8, padding_multiple=128),
     # https://huggingface.co/EleutherAI/pythia-160m/blob/main/config.json
@@ -303,6 +308,260 @@ tiny_LLaMA = [
 ]
 configs.extend(tiny_LLaMA)
 
+#############################
+# OpenCSG Algo Team
+#############################
+csg = [
+    # https://huggingface.co/opencsg
+    dict(
+        org="OpenCSG",
+        name="csg-wukong-1B",
+        block_size=2048,
+        vocab_size=32000,
+        padding_multiple=64,
+        n_layer=22,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5, #Llama 2 use 1e-5. Llama 1 use 1e-6
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg-wukong-1B-deepseek",
+        block_size=2048,
+        vocab_size=102400,
+        padding_multiple=64,
+        n_layer=22,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5, #Llama 2 use 1e-5. Llama 1 use 1e-6
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg-wukong-1B-qwew",
+        block_size=2048,
+        vocab_size=151936,
+        padding_multiple=64,
+        n_layer=22,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5, #Llama 2 use 1e-5. Llama 1 use 1e-6
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg-wukong-1B-yi",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=22,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5, #Llama 2 use 1e-5. Llama 1 use 1e-6
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_120M",
+        block_size=2048,
+        vocab_size=32000,
+        padding_multiple=64,
+        n_layer=12,
+        n_head=12,
+        n_embd=768,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2048,
+        n_query_groups=1,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_120M-v2",
+        block_size=2048,
+        vocab_size=102400,
+        padding_multiple=64,
+        n_layer=12,
+        n_head=12,
+        n_embd=768,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2048,
+        n_query_groups=1,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_120M-v3",
+        block_size=2048,
+        vocab_size=151936,
+        padding_multiple=64,
+        n_layer=12,
+        n_head=12,
+        n_embd=768,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2048,
+        n_query_groups=1,
+    ),
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_120M-v4",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=12,
+        n_head=12,
+        n_embd=768,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2048,
+        n_query_groups=1,
+    ),
+
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_10M_llama",
+        block_size=2048,
+        vocab_size=32000,
+        padding_multiple=64,
+        n_layer=6,
+        n_head=4,
+        n_embd=128,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=768,
+        n_query_groups=1,
+    ),
+    
+    
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_10M_yi",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=6,
+        n_head=4,
+        n_embd=72,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=576,
+        n_query_groups=1,
+    ),
+
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_30M_yi",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=6,
+        n_head=4,
+        n_embd=200,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=1048,
+        n_query_groups=1,
+    ),
+    
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_70M_yi",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=8,
+        n_head=6,
+        n_embd=512,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=1536,
+        n_query_groups=1,
+    ),
+        
+    dict(
+        org="OpenCSG",
+        name="csg_tiny_88M_yi",
+        block_size=2048,
+        vocab_size=64000,
+        padding_multiple=64,
+        n_layer=6,
+        n_head=4,
+        n_embd=512,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=2048,
+        n_query_groups=1,
+    )
+    
+]
+configs.extend(csg)
 
 #############################
 # OpenLM Research Open LLaMA
