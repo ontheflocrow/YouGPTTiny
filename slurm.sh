@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --nodes=1        # This needs to match Fabric(num_nodes=...)
+#SBATCH --nodes=2        # This needs to match Fabric(num_nodes=...)
 ### SBATCH --gpus-per-node=8
 #SBATCH --ntasks-per-node=8     # This needs to match Fabric(devices=...)
 #SBATCH --gres=gpu:8            # Request N GPUs per machine
@@ -29,6 +29,8 @@ export PYTHONFAULTHANDLER=1
 LD_PRELOAD=/opt/aws-ofi-nccl/lib/libnccl-net.so
 # On your cluster you might need this:
 # export NCCL_SOCKET_IFNAME=^docker0,lo
+
+export FI_EFA_SET_CUDA_SYNC_MEMOPS=0
 
 # Run your training script
 srun python /data/home/akokolis/myWorkspace/TinyLlama/pretrain/tinyllama.py --nodes 2 --devices 8 --train_data_dir /fsx-checkpoints/akokolis/data  --val_data_dir /fsx-checkpoints/akokolis/data
