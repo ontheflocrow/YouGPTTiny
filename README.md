@@ -9,7 +9,7 @@ English | [中文](README_zh-CN.md)
 The TinyLlama project aims to **pretrain** a **1.1B Llama model on 3 trillion tokens**. With some proper optimization, we can achieve this within a span of "just" 90 days using 16 A100-40G GPUs 🚀🚀. The training has started on 2023-09-01. 
 
 <div align="center">
-  <img src=".github/TinyLlama_logo.png" width="300"/>
+  <img src=".github/tinyllama-modelcard.png" width="300"/>
 </div>
 
 We adopted exactly the same architecture and tokenizer as Llama 2. This means TinyLlama can be plugged and played in many open-source projects built upon Llama. Besides, TinyLlama is compact with only 1.1B parameters. This compactness allows it to cater to a multitude of applications demanding a restricted computation and memory footprint.
